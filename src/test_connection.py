@@ -21,7 +21,7 @@ if web3 and web3.is_connected():
     print("✅ Conectado a la BNB Chain")
     print(f"Último bloque: {web3.eth.block_number}")
 else:
-    print("❌ No se pudo conectar a la blockchain.")
+    print("❌ No se pudo conectar a la blockchain. Verifica la URL RPC.")
 
 
 
