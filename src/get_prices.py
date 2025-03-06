@@ -2,20 +2,12 @@ from web3 import Web3
 import os
 from dotenv import load_dotenv
 
-# Cargar las variables de entorno desde el archivo .env en la raíz del proyecto
+# Cargar las variables de entorno desde el archivo .env
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path=dotenv_path)
 
-# Cargar la URL del RPC desde el archivo .env
-RPC_URL = os.getenv("RPC_URL")
-
-# Verificar que la URL RPC esté cargada
-if not RPC_URL:
-    print("❌ No se ha encontrado la URL del RPC en el archivo .env.")
-    exit()
-
-# Conectar con la blockchain si RPC_URL está disponible
-web3 = Web3(Web3.HTTPProvider(RPC_URL))
+# Configura tu proveedor de la red BNB Chain
+web3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL")))
 
 # Verificar si la conexión a la blockchain fue exitosa
 if web3.is_connected():
@@ -61,6 +53,34 @@ def get_token_price(router, amount_in_wei=Web3.to_wei(1, 'ether')):
         print(f"❌ Error al obtener precio: {e}")
         return None
 
+# Función para enviar una transacción
+def send_transaction(from_address, to_address, value_in_wei):
+    try:
+        # Obtener el nonce de la dirección
+        nonce = web3.eth.getTransactionCount(from_address, 'pending')
+        print(f"Nonce obtenido: {nonce}")
+
+        # Crear la transacción
+        transaction = {
+            'from': from_address,
+            'to': to_address,
+            'value': value_in_wei,
+            'gas': GAS_LIMIT,
+            'gasPrice': GAS_PRICE,
+            'nonce': nonce,
+        }
+
+        # Firmar la transacción
+        signed_txn = web3.eth.account.signTransaction(transaction, PRIVATE_KEY)
+
+        # Enviar la transacción
+        txn_hash = web3.eth.sendRawTransaction(signed_txn.rawTransaction)
+        print(f"✅ Transacción enviada con éxito: {txn_hash.hex()}")
+        return txn_hash
+    except Exception as e:
+        print(f"❌ Error al enviar transacción: {e}")
+        return None
+
 # Obtener precios en cada DEX
 price_pancake = get_token_price(pancake_router)
 price_apeswap = get_token_price(apeswap_router)
@@ -85,31 +105,21 @@ if price_pancake and price_apeswap:
     if spread > 1:  # Umbral de 1 USDT para arbitraje
         if price_pancake > price_apeswap:
             print("⚡ Oportunidad de arbitraje: Comprar en ApeSwap y vender en PancakeSwap")
+            # Llamada a la función para realizar arbitraje
+            buy_transaction_hash = send_transaction(SENDER_ADDRESS, APESWAP_ROUTER, Web3.to_wei(1, 'ether'))  # Comprar en ApeSwap
+            if buy_transaction_hash:
+                print("Compra realizada en ApeSwap. Ahora vendiendo en PancakeSwap.")
+                sell_transaction_hash = send_transaction(SENDER_ADDRESS, PANCAKESWAP_ROUTER, Web3.to_wei(1, 'ether'))  # Vender en PancakeSwap
+                if sell_transaction_hash:
+                    print("Arbitraje completado con éxito.")
         else:
             print("⚡ Oportunidad de arbitraje: Comprar en PancakeSwap y vender en ApeSwap")
+            # Llamada a la función para realizar arbitraje
+            buy_transaction_hash = send_transaction(SENDER_ADDRESS, PANCAKESWAP_ROUTER, Web3.to_wei(1, 'ether'))  # Comprar en PancakeSwap
+            if buy_transaction_hash:
+                print("Compra realizada en PancakeSwap. Ahora vendiendo en ApeSwap.")
+                sell_transaction_hash = send_transaction(SENDER_ADDRESS, APESWAP_ROUTER, Web3.to_wei(1, 'ether'))  # Vender en ApeSwap
+                if sell_transaction_hash:
+                    print("Arbitraje completado con éxito.")
     else:
         print("🔍 No hay oportunidad de arbitraje significativa.")
-
-# Función para enviar una transacción (ejemplo de uso de clave privada, gas y transacciones)
-def send_transaction(from_address, to_address, value_in_wei):
-    try:
-        # Crear la transacción
-        transaction = {
-            'from': from_address,
-            'to': to_address,
-            'value': value_in_wei,
-            'gas': GAS_LIMIT,  # Usar la variable cargada desde el archivo .env
-            'gasPrice': GAS_PRICE,  # Usar la variable cargada desde el archivo .env
-            'nonce': web3.eth.getTransactionCount(from_address),
-        }
-
-        # Firmar la transacción
-        signed_txn = web3.eth.account.signTransaction(transaction, PRIVATE_KEY)
-
-        # Enviar la transacción
-        txn_hash = web3.eth.sendRawTransaction(signed_txn.rawTransaction)
-        print(f"✅ Transacción enviada con éxito: {txn_hash.hex()}")
-        return txn_hash
-    except Exception as e:
-        print(f"❌ Error al enviar transacción: {e}")
-        return None
